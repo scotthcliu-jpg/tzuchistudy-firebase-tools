@@ -1,4 +1,33 @@
-*.local
+# OS and editor files
+desktop.ini
+Thumbs.db
 .DS_Store
+*.tmp
+*.local
+~$*
+
+# Secrets and credentials
+.env
+.env.*
+*.key
+*.pem
+credentials.*
+secrets.*
+*serviceAccount*.json
+*service-account*.json
+
+# AI agent local state
+.codex/
+.claude/
+
+# Node and Firebase local state
 node_modules/
+package-lock.json
 .firebase/
+firebase-debug.log
+firestore-debug.log
+
+# Build output
+dist/
+build/
+.cache/

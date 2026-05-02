@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>即時文字雲</title>
+  <script src="https://cdn.jsdelivr.net/npm/wordcloud@1.2.2/src/wordcloud2.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+      background: #0f172a;
+      color: #f1f5f9;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    header {
+      width: 100%;
+      background: linear-gradient(135deg, #1e3a5f, #0f172a);
+      padding: 18px 24px;
+      text-align: center;
+      border-bottom: 2px solid #334155;
+    }
+    header h1 { font-size: 1.6rem; letter-spacing: 2px; color: #7dd3fc; }
+    header p  { font-size: 0.85rem; color: #94a3b8; margin-top: 4px; }
+
+    /* 輸入區 */
+    .input-section {
+      width: 100%;
+      max-width: 600px;
+      padding: 24px 16px 12px;
+    }
+    .input-row {
+      display: flex;
+      gap: 10px;
+    }
+    .input-row input {
+      flex: 1;
+      padding: 12px 16px;
+      font-size: 1.1rem;
+      border: 2px solid #334155;
+      border-radius: 10px;
+      background: #1e293b;
+      color: #f1f5f9;
+      outline: none;
+      transition: border-color .2s;
+    }
+    .input-row input:focus { border-color: #38bdf8; }
+    .input-row button {
+      padding: 12px 24px;
+      font-size: 1rem;
+      font-weight: bold;
+      background: #0ea5e9;
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: background .2s, transform .1s;
+    }
+    .input-row button:hover  { background: #38bdf8; }
+    .input-row button:active { transform: scale(.97); }
+
+    #status {
+      min-height: 22px;
+      font-size: 0.85rem;
+      color: #94a3b8;
+      margin-top: 8px;
+      text-align: center;
+    }
+    #status.ok  { color: #4ade80; }
+    #status.err { color: #f87171; }
+
+    /* 文字雲畫布 */
+    .cloud-wrap {
+      width: 95vw;
+      max-width: 900px;
+      aspect-ratio: 16 / 9;
+      margin: 8px auto 0;
+      background: #1e293b;
+      border-radius: 16px;
+      overflow: hidden;
+      position: relative;
+    }
+    #wc-canvas {
+      width: 100%;
+      height: 100%;
+    }
+    #empty-msg {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #475569;
+      font-size: 1rem;
+      pointer-events: none;
+    }
+
+    /* 統計列 */
+    .stats {
+      margin: 10px 0 16px;
+      font-size: 0.82rem;
+      color: #64748b;
+    }
+    .stats span { color: #7dd3fc; font-weight: bold; }
+
+    /* 排行榜 */
+    .rank-wrap {
+      width: 95vw;
+      max-width: 900px;
+      margin-bottom: 32px;
+    }
+    .rank-wrap h2 {
+      font-size: 0.9rem;
+      color: #64748b;
+      margin-bottom: 8px;
+      letter-spacing: 1px;
+    }
+    .rank-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .rank-item {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 20px;
+      padding: 5px 14px;
+      font-size: 0.85rem;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .rank-item .word  { color: #e2e8f0; }
+    .rank-item .count { color: #38bdf8; font-weight: bold; }
+
+    /* 清除按鈕 */
+    .danger-zone {
+      margin-bottom: 40px;
+    }
+    .danger-zone button {
+      background: transparent;
+      border: 1px solid #ef4444;
+      color: #ef4444;
+      border-radius: 8px;
+      padding: 6px 18px;
+      font-size: 0.8rem;
+      cursor: pointer;
+      transition: background .2s;
+    }
+    .danger-zone button:hover { background: #ef444420; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>📝 即時文字雲</h1>
+  <p>輸入你的想法，大家的詞彙即時顯示</p>
+</header>
+
+<section class="input-section">
+  <div class="input-row">
+    <input id="wordInput" type="text" placeholder="輸入關鍵字（可含空格分隔多個詞）" maxlength="30" />
+    <button id="submitBtn" onclick="submitWord()">送出</button>
+  </div>
+  <div id="status"></div>
+</section>
+
+<div class="cloud-wrap">
+  <canvas id="wc-canvas"></canvas>
+  <div id="empty-msg">等待大家輸入關鍵字…</div>
+</div>
+
+<div class="stats">
+  共 <span id="total-count">0</span> 筆輸入・<span id="unique-count">0</span> 個不同詞彙
+</div>
+
+<div class="rank-wrap">
+  <h2>🔥 熱門詞彙</h2>
+  <div class="rank-list" id="rank-list"></div>
+</div>
+
+<div class="danger-zone">
+  <button onclick="clearAll()">🗑 清除所有資料（老師用）</button>
+</div>
+
+<!-- Firebase SDK -->
+<script type="module">
+  import { initializeApp }          from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getFirestore, collection, addDoc, onSnapshot,
+           deleteDoc, getDocs, serverTimestamp }
+    from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+  // ── Firebase 設定 ──────────────────────────────────────
+  const firebaseConfig = {
+    apiKey:            "AIzaSyDw-KnkYq8egJfeM4DjIrnnSfxYn83ppoc",
+    authDomain:        "tzuchistudy.firebaseapp.com",
+    projectId:         "tzuchistudy",
+    storageBucket:     "tzuchistudy.firebasestorage.app",
+    messagingSenderId: "156602806245",
+    appId:             "1:156602806245:web:585e0c70d9aaaaae0dc90c"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db  = getFirestore(app);
+  const col = collection(db, "wordcloud_words");
+
+  // ── 即時監聽 ───────────────────────────────────────────
+  let wordMap = {};
+
+  onSnapshot(col, (snapshot) => {
+    wordMap = {};
+    snapshot.forEach(doc => {
+      const raw = (doc.data().word || "").trim();
+      if (!raw) return;
+      // 支援空格分隔多詞
+      raw.split(/\s+/).forEach(w => {
+        if (w) wordMap[w] = (wordMap[w] || 0) + 1;
+      });
+    });
+    renderCloud();
+    renderRank();
+    updateStats(snapshot.size);
+  });
+
+  // ── 渲染文字雲 ─────────────────────────────────────────
+  const COLORS = ["#38bdf8","#818cf8","#34d399","#fb923c","#f472b6",
+                  "#facc15","#a78bfa","#4ade80","#60a5fa","#f87171"];
+
+  function renderCloud() {
+    const canvas = document.getElementById("wc-canvas");
+    const empty  = document.getElementById("empty-msg");
+    const entries = Object.entries(wordMap);
+
+    if (!entries.length) {
+      empty.style.display = "flex";
+      const ctx = canvas.getContext("2d");
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      return;
+    }
+    empty.style.display = "none";
+
+    // 動態設定 canvas 實際像素
+    const wrap = canvas.parentElement;
+    canvas.width  = wrap.clientWidth  || 800;
+    canvas.height = wrap.clientHeight || 450;
+
+    const maxCnt = Math.max(...entries.map(e => e[1]));
+    const list = entries.map(([word, cnt]) => [
+      word,
+      Math.round(12 + (cnt / maxCnt) * (canvas.width / 6))
+    ]);
+
+    WordCloud(canvas, {
+      list,
+      gridSize:      Math.round(canvas.width / 80),
+      weightFactor:  1,
+      fontFamily:    "Noto Sans TC, Microsoft JhengHei, sans-serif",
+      color:         () => COLORS[Math.floor(Math.random() * COLORS.length)],
+      rotateRatio:   0.3,
+      rotationSteps: 2,
+      backgroundColor: "#1e293b",
+      drawOutOfBound: false,
+      shrinkToFit:   true,
+    });
+  }
+
+  // ── 排行榜 ─────────────────────────────────────────────
+  function renderRank() {
+    const sorted = Object.entries(wordMap)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 20);
+    const el = document.getElementById("rank-list");
+    el.innerHTML = sorted.map(([w, c], i) =>
+      `<div class="rank-item">
+        <span style="color:#64748b">${i + 1}</span>
+        <span class="word">${w}</span>
+        <span class="count">×${c}</span>
+       </div>`
+    ).join("");
+  }
+
+  function updateStats(total) {
+    document.getElementById("total-count").textContent  = total;
+    document.getElementById("unique-count").textContent = Object.keys(wordMap).length;
+  }
+
+  // ── 送出 ───────────────────────────────────────────────
+  window.submitWord = async function() {
+    const input = document.getElementById("wordInput");
+    const word  = input.value.trim();
+    const status = document.getElementById("status");
+
+    if (!word) { setStatus("請輸入關鍵字", "err"); return; }
+
+    document.getElementById("submitBtn").disabled = true;
+    setStatus("送出中…", "");
+
+    try {
+      await addDoc(col, { word, timestamp: serverTimestamp() });
+      input.value = "";
+      setStatus("✓ 已送出！", "ok");
+    } catch (e) {
+      setStatus("送出失敗：" + e.message, "err");
+    } finally {
+      document.getElementById("submitBtn").disabled = false;
+      input.focus();
+    }
+    setTimeout(() => setStatus("", ""), 2000);
+  };
+
+  // ── 清除所有資料 ───────────────────────────────────────
+  window.clearAll = async function() {
+    if (!confirm("確定要清除所有文字雲資料嗎？此動作無法復原。")) return;
+    const snap = await getDocs(col);
+    await Promise.all(snap.docs.map(d => deleteDoc(d.ref)));
+    setStatus("✓ 已清除所有資料", "ok");
+    setTimeout(() => setStatus("", ""), 3000);
+  };
+
+  // ── 工具 ───────────────────────────────────────────────
+  function setStatus(msg, cls) {
+    const el = document.getElementById("status");
+    el.textContent = msg;
+    el.className = cls;
+  }
+
+  // Enter 鍵送出
+  document.getElementById("wordInput").addEventListener("keydown", e => {
+    if (e.key === "Enter") window.submitWord();
+  });
+</script>
+
+</body>
+</html>
